@@ -1,0 +1,15 @@
+.card {
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	padding: var(--spacing-md);
+	box-shadow: 0 2px 4px var(--color-shadow);
+
+	.card-header {
+		font-weight: bold;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.card-body {
+		line-height: 1.5;
+	}
+}

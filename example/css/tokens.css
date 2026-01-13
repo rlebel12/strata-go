@@ -1,0 +1,12 @@
+:root {
+	--color-primary: #3b82f6;
+	--color-primary-hover: #2563eb;
+	--color-border: #e5e7eb;
+	--color-shadow: rgba(0, 0, 0, 0.1);
+
+	--radius-sm: 4px;
+	--radius-md: 8px;
+
+	--spacing-sm: 0.5rem;
+	--spacing-md: 1rem;
+}
