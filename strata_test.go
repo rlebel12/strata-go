@@ -3,6 +3,7 @@ package strata
 import (
 	"errors"
 	"io/fs"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -281,5 +282,162 @@ func TestBuild_walk_error_propagation(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "walk") {
 		t.Errorf("Build() error = %q, want error containing 'walk'", err.Error())
+	}
+}
+
+func TestBuildWithHash(t *testing.T) {
+	t.Parallel()
+
+	// Test data structures
+	hashBasicFS := fstest.MapFS{
+		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+	}
+
+	tests := []struct {
+		name            string
+		giveFS          fs.FS
+		giveDir         string
+		wantHashLen     int
+		wantCSSNonEmpty bool
+	}{
+		{
+			name:            "returns_hash",
+			giveFS:          hashBasicFS,
+			giveDir:         "css",
+			wantHashLen:     16,
+			wantCSSNonEmpty: true,
+		},
+		{
+			name:            "empty_fs_empty_hash",
+			giveFS:          fstest.MapFS{},
+			giveDir:         "css",
+			wantHashLen:     0,
+			wantCSSNonEmpty: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			css, hash, err := BuildWithHash(tt.giveFS, tt.giveDir)
+			if err != nil {
+				t.Fatalf("BuildWithHash() error = %v, want nil", err)
+			}
+
+			if len(hash) != tt.wantHashLen {
+				t.Errorf("BuildWithHash() hash len = %d, want %d", len(hash), tt.wantHashLen)
+			}
+
+			gotCSSNonEmpty := css != ""
+			if gotCSSNonEmpty != tt.wantCSSNonEmpty {
+				t.Errorf("BuildWithHash() CSS non-empty = %v, want %v", gotCSSNonEmpty, tt.wantCSSNonEmpty)
+			}
+		})
+	}
+}
+
+func TestBuildWithHash_stability(t *testing.T) {
+	t.Parallel()
+
+	testFS := fstest.MapFS{
+		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+	}
+
+	css1, hash1, err := BuildWithHash(testFS, "css")
+	if err != nil {
+		t.Fatalf("BuildWithHash() first call error = %v", err)
+	}
+
+	css2, hash2, err := BuildWithHash(testFS, "css")
+	if err != nil {
+		t.Fatalf("BuildWithHash() second call error = %v", err)
+	}
+
+	if hash1 != hash2 {
+		t.Errorf("BuildWithHash() hashes differ: %q vs %q, want identical", hash1, hash2)
+	}
+
+	if css1 != css2 {
+		t.Errorf("BuildWithHash() CSS differs, want identical")
+	}
+}
+
+func TestBuildWithHash_uniqueness(t *testing.T) {
+	t.Parallel()
+
+	hashBasicFS := fstest.MapFS{
+		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+	}
+	hashDifferentFS := fstest.MapFS{
+		"css/reset.css": {Data: []byte("* { margin: 1px; }")},
+	}
+
+	_, hash1, err := BuildWithHash(hashBasicFS, "css")
+	if err != nil {
+		t.Fatalf("BuildWithHash() first call error = %v", err)
+	}
+
+	_, hash2, err := BuildWithHash(hashDifferentFS, "css")
+	if err != nil {
+		t.Fatalf("BuildWithHash() second call error = %v", err)
+	}
+
+	if hash1 == hash2 {
+		t.Errorf("BuildWithHash() hashes should differ for different content, got same: %q", hash1)
+	}
+}
+
+func TestBuildWithHash_hex_format(t *testing.T) {
+	t.Parallel()
+
+	testFS := fstest.MapFS{
+		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+	}
+
+	_, hash, err := BuildWithHash(testFS, "css")
+	if err != nil {
+		t.Fatalf("BuildWithHash() error = %v", err)
+	}
+
+	hexPattern := regexp.MustCompile(`^[0-9a-f]{16}$`)
+	if !hexPattern.MatchString(hash) {
+		t.Errorf("BuildWithHash() hash = %q, want lowercase hex matching ^[0-9a-f]{16}$", hash)
+	}
+}
+
+func TestBuildWithHash_matches_build(t *testing.T) {
+	t.Parallel()
+
+	testFS := fstest.MapFS{
+		"css/reset.css":     {Data: []byte("* { margin: 0; }")},
+		"css/base/file.css": {Data: []byte("h1 {}")},
+	}
+
+	buildCSS, err := Build(testFS, "css")
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	hashCSS, _, err := BuildWithHash(testFS, "css")
+	if err != nil {
+		t.Fatalf("BuildWithHash() error = %v", err)
+	}
+
+	if buildCSS != hashCSS {
+		t.Errorf("BuildWithHash() CSS differs from Build() output")
+	}
+}
+
+func TestBuildWithHash_error_propagation(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := BuildWithHash(brokenFS{}, "css")
+	if err == nil {
+		t.Fatal("BuildWithHash() error = nil, want error")
+	}
+
+	if !strings.Contains(err.Error(), "walk") {
+		t.Errorf("BuildWithHash() error = %q, want error containing 'walk'", err.Error())
 	}
 }

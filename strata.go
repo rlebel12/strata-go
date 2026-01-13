@@ -3,6 +3,8 @@ package strata
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"path"
@@ -151,4 +153,33 @@ func Build(fsys fs.FS, dir string) (string, error) {
 	}
 
 	return out.String(), nil
+}
+
+// BuildWithHash returns the built CSS and a content hash for cache busting.
+//
+// The hash is computed from the CSS output using SHA-256, truncated to 16
+// lowercase hexadecimal characters (8 bytes). Empty CSS returns an empty hash.
+//
+// Example usage:
+//
+//	css, hash, err := strata.BuildWithHash(os.DirFS("."), "css")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	// Use hash in filename: styles.{hash}.css
+//	fmt.Printf("<link rel=\"stylesheet\" href=\"/static/styles.%s.css\">\n", hash)
+func BuildWithHash(fsys fs.FS, dir string) (css string, hash string, err error) {
+	css, err = Build(fsys, dir)
+	if err != nil {
+		return "", "", err
+	}
+
+	if css == "" {
+		return "", "", nil
+	}
+
+	sum := sha256.Sum256([]byte(css))
+	hash = hex.EncodeToString(sum[:8])
+
+	return css, hash, nil
 }

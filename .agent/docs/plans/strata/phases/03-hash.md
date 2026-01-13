@@ -1,7 +1,7 @@
 # Phase 03: BuildWithHash Function
 
 **Depends on:** Phase 02
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -57,9 +57,9 @@ hashDifferentFS := fstest.MapFS{
 
 ### Gate: RED
 
-- [ ] Test file created with hash validation tests
-- [ ] All tests FAIL (BuildWithHash does not exist)
-- [ ] Tests verify hash format, stability, and uniqueness
+- [x] Test file created with hash validation tests
+- [x] All tests FAIL (BuildWithHash does not exist)
+- [x] Tests verify hash format, stability, and uniqueness
 
 ---
 
@@ -99,9 +99,9 @@ func BuildWithHash(fsys fs.FS, dir string) (css string, hash string, err error)
 
 ### Gate: GREEN
 
-- [ ] All tests from RED phase now PASS
-- [ ] Test command: `go test -run ^TestBuildWithHash$ -v`
-- [ ] Hash format matches spec (16 lowercase hex chars)
+- [x] All tests from RED phase now PASS
+- [x] Test command: `go test -run ^TestBuildWithHash$ -v`
+- [x] Hash format matches spec (16 lowercase hex chars)
 
 ---
 
@@ -117,9 +117,9 @@ func BuildWithHash(fsys fs.FS, dir string) (css string, hash string, err error)
 
 ### Gate: REFACTOR
 
-- [ ] Function documented with godoc comment and usage example
-- [ ] Error handling consistent with Build function
-- [ ] No unnecessary allocations in hash computation
+- [x] Function documented with godoc comment and usage example
+- [x] Error handling consistent with Build function
+- [x] No unnecessary allocations in hash computation
 
 ---
 
