@@ -7,7 +7,7 @@
 | Phase | Description | Depends On | Status |
 |-------|-------------|------------|--------|
 | [01-path-to-layer](phases/01-path-to-layer.md) | Path-to-layer name conversion | None | Complete |
-| [02-build](phases/02-build.md) | Core Build function with fs.FS walking | Phase 01 | Pending |
+| [02-build](phases/02-build.md) | Core Build function with fs.FS walking | Phase 01 | Complete |
 | [03-hash](phases/03-hash.md) | BuildWithHash cache-busting wrapper | Phase 02 | Pending |
 
 ## Dependencies
@@ -27,8 +27,8 @@ All phases execute sequentially.
 
 ## Status
 
-**Progress:** 1/3 phases complete
-**Current Phase:** Phase 02
+**Progress:** 2/3 phases complete
+**Current Phase:** Phase 03
 **Blocked:** None
 
 ---
