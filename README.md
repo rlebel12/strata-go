@@ -64,4 +64,4 @@ css/
 
 ## Requirements
 
-Go 1.21+ (standard library only, no external dependencies)
+Go 1.24+ (standard library only, no external dependencies)
