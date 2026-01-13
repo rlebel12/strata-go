@@ -1,0 +1,66 @@
+version: 2
+
+run:
+  timeout: 10m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable-all: true
+  disable:
+    # Framework-specific (not applicable)
+    - arangolint
+    - ginkgolinter
+    - promlinter
+    - spancheck
+    - zerologlint
+    - protogetter
+    # Overly opinionated
+    - exhaustruct
+    - varnamelen
+    - testpackage
+    - nonamedreturns
+    - godox
+    # Deprecated
+    - wsl
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+linters-settings:
+  gofumpt:
+    extra-rules: true
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  govet:
+    enable-all: true
+  gosec:
+    severity: low
+    confidence: low
+  gocritic:
+    enabled-tags: [diagnostic, style, performance, experimental, opinionated]
+  gocyclo:
+    min-complexity: 15
+  gocognit:
+    min-complexity: 20
+  funlen:
+    lines: 100
+    statements: 50
+  nestif:
+    min-complexity: 4
+  lll:
+    line-length: 120
+  dupl:
+    threshold: 100
+  nakedret:
+    max-func-lines: 30
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters: [gocyclo, errcheck, dupl, gosec, funlen, gocognit]
+    - path: cmd/.*/main\.go
+      linters: [gocyclo, funlen]

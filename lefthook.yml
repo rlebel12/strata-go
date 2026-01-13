@@ -1,0 +1,32 @@
+pre-commit:
+  piped: true
+  jobs:
+    - name: gofumpt
+      glob: "*.go"
+      run: gofumpt -w {staged_files}
+      stage_fixed: true
+
+    - name: go-mod-tidy
+      glob: "go.{mod,sum}"
+      run: go mod tidy
+      stage_fixed: true
+
+    - name: go-checks
+      group:
+        parallel: true
+        jobs:
+          - name: go-vet
+            glob: "*.go"
+            run: go vet ./...
+
+          - name: go-build
+            glob: "*.go"
+            run: go build -o /dev/null ./...
+
+          - name: golangci-lint
+            glob: "*.go"
+            run: golangci-lint run --config=.golangci.yml
+
+          - name: go-test
+            glob: "*.go"
+            run: go test ./...
