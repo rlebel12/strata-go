@@ -1,11 +1,11 @@
 pre-commit:
   piped: true
   jobs:
-    - name: gofumpt
-      glob: "*.go"
-      run: gofumpt -w {staged_files}
-      stage_fixed: true
-      skip: true
+    # Uncomment when gofumpt is installed
+    # - name: gofumpt
+    #   glob: "*.go"
+    #   run: gofumpt -w {staged_files}
+    #   stage_fixed: true
 
     - name: go-mod-tidy
       glob: "go.{mod,sum}"
@@ -24,10 +24,10 @@ pre-commit:
             glob: "*.go"
             run: go build -o /dev/null ./...
 
-          - name: golangci-lint
-            glob: "*.go"
-            run: golangci-lint run --config=.golangci.yml
-            skip: true
+          # Uncomment when golangci-lint is installed
+          # - name: golangci-lint
+          #   glob: "*.go"
+          #   run: golangci-lint run --config=.golangci.yml
 
           - name: go-test
             glob: "*.go"
