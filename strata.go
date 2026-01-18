@@ -16,11 +16,10 @@ const cssExtension = ".css"
 
 // Source represents a CSS source directory to build from.
 type Source struct {
-	// FS is the filesystem to read from
+	// FS is the filesystem to read from.
+	// The filesystem should be rooted at the directory containing CSS files.
+	// Use fs.Sub() to create a sub-filesystem if needed.
 	FS fs.FS
-
-	// Dir is the directory path to walk within the filesystem
-	Dir string
 
 	// Prefix is an optional namespace to prepend to all layer names.
 	// If set, layer names will be "prefix.layername" instead of "layername".
@@ -29,27 +28,21 @@ type Source struct {
 
 // pathToLayerName converts a file path to its CSS layer name.
 //
-// The layer name is derived from the directory structure relative to the
-// root directory. Root files use the filename (without extension) as the
-// layer name. Nested paths use dots as separators.
+// The layer name is derived from the directory structure. Root files use
+// the filename (without extension) as the layer name. Nested paths use
+// dots as separators.
 //
 // Examples:
-//   - pathToLayerName("css/reset.css", "css") -> "reset"
-//   - pathToLayerName("css/base/file.css", "css") -> "base"
-//   - pathToLayerName("css/base/elements/btn.css", "css") -> "base.elements"
-func pathToLayerName(filePath, dir string) string {
-	// Normalize dir to ensure no trailing slash
-	dir = strings.TrimSuffix(dir, "/")
-
-	// Strip dir prefix from path
-	relPath := strings.TrimPrefix(filePath, dir+"/")
-
-	// Get directory portion of relative path
-	dirPart := path.Dir(relPath)
+//   - pathToLayerName("reset.css") -> "reset"
+//   - pathToLayerName("base/file.css") -> "base"
+//   - pathToLayerName("base/elements/btn.css") -> "base.elements"
+func pathToLayerName(filePath string) string {
+	// Get directory portion of path
+	dirPart := path.Dir(filePath)
 
 	// Root file: use filename without extension
 	if dirPart == "." {
-		return strings.TrimSuffix(path.Base(relPath), path.Ext(relPath))
+		return strings.TrimSuffix(path.Base(filePath), path.Ext(filePath))
 	}
 
 	// Nested path: replace "/" with "." to form layer name
@@ -63,12 +56,12 @@ type layer struct {
 	content *bytes.Buffer
 }
 
-// Build walks one or more source directories and returns CSS with @layer declarations.
+// Build walks one or more source filesystems and returns CSS with @layer declarations.
 //
 // Sources are processed in slice order. Within each source, the directory structure
 // determines layer hierarchy:
-//   - Root files (e.g., css/reset.css) become individual layers
-//   - Nested directories use dot notation (e.g., css/base/elements/ -> base.elements)
+//   - Root files (e.g., reset.css) become individual layers
+//   - Nested directories use dot notation (e.g., base/elements/ -> base.elements)
 //   - Optional Prefix prepends a namespace (e.g., Prefix: "comp" -> comp.button)
 //
 // Output format:
@@ -121,7 +114,7 @@ func Build(sources ...Source) (string, error) {
 				return "", fmt.Errorf("read %s: %w", filePath, err)
 			}
 
-			layerName := pathToLayerName(filePath, src.Dir)
+			layerName := pathToLayerName(filePath)
 
 			// Apply prefix if specified
 			if src.Prefix != "" {

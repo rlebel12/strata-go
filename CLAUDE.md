@@ -22,16 +22,15 @@ Single-package library (`package strata`) that transforms CSS directory structur
 - `Build(sources ...Source) (string, error)` - Builds CSS from one or more sources
 - `BuildWithHash(sources ...Source) (css, hash string, err error)` - Same as Build, plus SHA-256 content hash (16 hex chars)
 - `Source` struct:
-  - `FS fs.FS` - Filesystem to read from
-  - `Dir string` - Directory path within filesystem
+  - `FS fs.FS` - Filesystem to read from (use `fs.Sub()` to create sub-filesystems)
   - `Prefix string` - Optional namespace prefix for layer names
 
 **Layer derivation:**
-- Root files → layer name from filename (e.g., `css/reset.css` → `reset`)
-- Nested dirs → dot-separated layer name (e.g., `css/base/elements/` → `base.elements`)
+- Root files → layer name from filename (e.g., `reset.css` → `reset`)
+- Nested dirs → dot-separated layer name (e.g., `base/elements/` → `base.elements`)
 - Prefix → prepended to layer name (e.g., Prefix: "comp", `button.css` → `comp.button`)
 - Ordering: Sources processed in slice order; within each source, depth-first (shallow before deep), then alphabetical
 
-**Multi-directory usage:** Pass multiple `Source` structs to build from co-located CSS (e.g., styles/, components/, routes/)
+**Multi-directory usage:** Use `fs.Sub()` to create sub-filesystems, then pass multiple `Source` structs (e.g., styles/, components/, routes/)
 
 **Constraints:** Standard library only, no external dependencies.

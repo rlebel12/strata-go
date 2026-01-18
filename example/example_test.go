@@ -2,17 +2,22 @@ package main_test
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 
 	"github.com/rlebel12/strata-go"
 )
 
 func ExampleBuild() {
-	// Build CSS from the css/ directory
-	output, err := strata.Build(strata.Source{
-		FS:  os.DirFS("."),
-		Dir: "css",
-	})
+	// Create a sub-filesystem rooted at the css/ directory
+	cssFS, err := fs.Sub(os.DirFS("."), "css")
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+
+	// Build CSS from the filesystem
+	output, err := strata.Build(strata.Source{FS: cssFS})
 	if err != nil {
 		fmt.Println("error:", err)
 		return

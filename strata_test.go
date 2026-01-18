@@ -15,72 +15,50 @@ func TestPathToLayerName(t *testing.T) {
 	tests := []struct {
 		name          string
 		givePath      string
-		giveDir       string
 		wantLayerName string
 	}{
 		// Root files become own layer
 		{
 			name:          "root_file",
-			givePath:      "css/reset.css",
-			giveDir:       "css",
+			givePath:      "reset.css",
 			wantLayerName: "reset",
 		},
 		{
 			name:          "root_file_tokens",
-			givePath:      "css/tokens.css",
-			giveDir:       "css",
+			givePath:      "tokens.css",
 			wantLayerName: "tokens",
 		},
 		// Single folder depth
 		{
 			name:          "nested_single",
-			givePath:      "css/base/typography.css",
-			giveDir:       "css",
+			givePath:      "base/typography.css",
 			wantLayerName: "base",
 		},
 		{
 			name:          "nested_sibling",
-			givePath:      "css/base/links.css",
-			giveDir:       "css",
+			givePath:      "base/links.css",
 			wantLayerName: "base",
 		},
 		// Multi-level nesting uses dots
 		{
 			name:          "deeply_nested",
-			givePath:      "css/base/elements/buttons.css",
-			giveDir:       "css",
+			givePath:      "base/elements/buttons.css",
 			wantLayerName: "base.elements",
 		},
 		{
 			name:          "very_deep",
-			givePath:      "css/a/b/c/d.css",
-			giveDir:       "css",
+			givePath:      "a/b/c/d.css",
 			wantLayerName: "a.b.c",
-		},
-		// Different root directories
-		{
-			name:          "different_root",
-			givePath:      "styles/main.css",
-			giveDir:       "styles",
-			wantLayerName: "main",
-		},
-		{
-			name:          "different_root_nested",
-			givePath:      "assets/css/base/file.css",
-			giveDir:       "assets/css",
-			wantLayerName: "base",
 		},
 		// Edge cases
 		{
 			name:          "single_char_name",
-			givePath:      "css/a/b.css",
-			giveDir:       "css",
+			givePath:      "a/b.css",
 			wantLayerName: "a",
 		},
 		{
 			name:          "hyphen_in_name",
-			givePath:      "css/my-layer/file.css",
-			giveDir:       "css",
+			givePath:      "my-layer/file.css",
 			wantLayerName: "my-layer",
 		},
 	}
@@ -89,10 +67,10 @@ func TestPathToLayerName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := pathToLayerName(tt.givePath, tt.giveDir)
+			got := pathToLayerName(tt.givePath)
 			if got != tt.wantLayerName {
-				t.Errorf("pathToLayerName(%q, %q) = %q, want %q",
-					tt.givePath, tt.giveDir, got, tt.wantLayerName)
+				t.Errorf("pathToLayerName(%q) = %q, want %q",
+					tt.givePath, got, tt.wantLayerName)
 			}
 		})
 	}
@@ -101,89 +79,81 @@ func TestPathToLayerName(t *testing.T) {
 func TestBuild(t *testing.T) {
 	t.Parallel()
 
-	// Test data structures
+	// Test data structures - files at root of FS
 	singleRootFS := fstest.MapFS{
-		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+		"reset.css": {Data: []byte("* { margin: 0; }")},
 	}
 
 	multipleRootFS := fstest.MapFS{
-		"css/reset.css":  {Data: []byte("a")},
-		"css/tokens.css": {Data: []byte("b")},
+		"reset.css":  {Data: []byte("a")},
+		"tokens.css": {Data: []byte("b")},
 	}
 
 	singleNestedFS := fstest.MapFS{
-		"css/base/typography.css": {Data: []byte("h1 {}")},
-		"css/base/links.css":      {Data: []byte("a {}")},
+		"base/typography.css": {Data: []byte("h1 {}")},
+		"base/links.css":      {Data: []byte("a {}")},
 	}
 
 	mixedDepthsFS := fstest.MapFS{
-		"css/reset.css":             {Data: []byte("x")},
-		"css/base/file.css":         {Data: []byte("y")},
-		"css/base/elements/btn.css": {Data: []byte("z")},
+		"reset.css":             {Data: []byte("x")},
+		"base/file.css":         {Data: []byte("y")},
+		"base/elements/btn.css": {Data: []byte("z")},
 	}
 
 	deeplyNestedFS := fstest.MapFS{
-		"css/a/b/c/d.css": {Data: []byte("x")},
+		"a/b/c/d.css": {Data: []byte("x")},
 	}
 
 	ignoresNonCSSFS := fstest.MapFS{
-		"css/readme.md": {Data: []byte("# hi")},
-		"css/reset.css": {Data: []byte("x")},
+		"readme.md": {Data: []byte("# hi")},
+		"reset.css": {Data: []byte("x")},
 	}
 
 	tests := []struct {
 		name           string
 		giveFS         fs.FS
-		giveDir        string
 		wantLayerDecl  string
 		wantLayerCount int
 	}{
 		{
 			name:           "single_root_file",
 			giveFS:         singleRootFS,
-			giveDir:        "css",
 			wantLayerDecl:  "@layer reset;",
 			wantLayerCount: 1,
 		},
 		{
 			name:           "multiple_root_files",
 			giveFS:         multipleRootFS,
-			giveDir:        "css",
 			wantLayerDecl:  "@layer reset, tokens;",
 			wantLayerCount: 2,
 		},
 		{
 			name:           "single_nested_dir",
 			giveFS:         singleNestedFS,
-			giveDir:        "css",
 			wantLayerDecl:  "@layer base;",
 			wantLayerCount: 1,
 		},
 		{
 			name:           "mixed_depths",
 			giveFS:         mixedDepthsFS,
-			giveDir:        "css",
 			wantLayerDecl:  "@layer base, reset, base.elements;",
 			wantLayerCount: 3,
 		},
 		{
 			name:           "deeply_nested",
 			giveFS:         deeplyNestedFS,
-			giveDir:        "css",
 			wantLayerDecl:  "@layer a.b.c;",
 			wantLayerCount: 1,
 		},
 		{
 			name:           "empty_result",
 			giveFS:         fstest.MapFS{},
-			giveDir:        "css",
 			wantLayerDecl:  "",
 			wantLayerCount: 0,
 		},
 		{
 			name:           "ignores_non_css",
 			giveFS:         ignoresNonCSSFS,
-			giveDir:        "css",
 			wantLayerDecl:  "@layer reset;",
 			wantLayerCount: 1,
 		},
@@ -193,7 +163,7 @@ func TestBuild(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := Build(Source{FS: tt.giveFS, Dir: tt.giveDir})
+			got, err := Build(Source{FS: tt.giveFS})
 			if err != nil {
 				t.Fatalf("Build() error = %v, want nil", err)
 			}
@@ -226,11 +196,11 @@ func TestBuild_concatenation_order(t *testing.T) {
 
 	// Files within same layer should be concatenated alphabetically
 	testFS := fstest.MapFS{
-		"css/base/typography.css": {Data: []byte("h1 {}")},
-		"css/base/links.css":      {Data: []byte("a {}")},
+		"base/typography.css": {Data: []byte("h1 {}")},
+		"base/links.css":      {Data: []byte("a {}")},
 	}
 
-	got, err := Build(Source{FS: testFS, Dir: "css"})
+	got, err := Build(Source{FS: testFS})
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
 	}
@@ -252,10 +222,10 @@ func TestBuild_empty_file_creates_layer(t *testing.T) {
 	t.Parallel()
 
 	testFS := fstest.MapFS{
-		"css/empty.css": {Data: []byte("")},
+		"empty.css": {Data: []byte("")},
 	}
 
-	got, err := Build(Source{FS: testFS, Dir: "css"})
+	got, err := Build(Source{FS: testFS})
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
 	}
@@ -275,7 +245,7 @@ func (brokenFS) Open(name string) (fs.File, error) {
 func TestBuild_walk_error_propagation(t *testing.T) {
 	t.Parallel()
 
-	_, err := Build(Source{FS: brokenFS{}, Dir: "css"})
+	_, err := Build(Source{FS: brokenFS{}})
 	if err == nil {
 		t.Fatal("Build() error = nil, want error")
 	}
@@ -288,29 +258,26 @@ func TestBuild_walk_error_propagation(t *testing.T) {
 func TestBuildWithHash(t *testing.T) {
 	t.Parallel()
 
-	// Test data structures
+	// Test data structures - files at root of FS
 	hashBasicFS := fstest.MapFS{
-		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+		"reset.css": {Data: []byte("* { margin: 0; }")},
 	}
 
 	tests := []struct {
 		name            string
 		giveFS          fs.FS
-		giveDir         string
 		wantHashLen     int
 		wantCSSNonEmpty bool
 	}{
 		{
 			name:            "returns_hash",
 			giveFS:          hashBasicFS,
-			giveDir:         "css",
 			wantHashLen:     16,
 			wantCSSNonEmpty: true,
 		},
 		{
 			name:            "empty_fs_empty_hash",
 			giveFS:          fstest.MapFS{},
-			giveDir:         "css",
 			wantHashLen:     0,
 			wantCSSNonEmpty: false,
 		},
@@ -320,7 +287,7 @@ func TestBuildWithHash(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			css, hash, err := BuildWithHash(Source{FS: tt.giveFS, Dir: tt.giveDir})
+			css, hash, err := BuildWithHash(Source{FS: tt.giveFS})
 			if err != nil {
 				t.Fatalf("BuildWithHash() error = %v, want nil", err)
 			}
@@ -341,15 +308,15 @@ func TestBuildWithHash_stability(t *testing.T) {
 	t.Parallel()
 
 	testFS := fstest.MapFS{
-		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+		"reset.css": {Data: []byte("* { margin: 0; }")},
 	}
 
-	css1, hash1, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
+	css1, hash1, err := BuildWithHash(Source{FS: testFS})
 	if err != nil {
 		t.Fatalf("BuildWithHash() first call error = %v", err)
 	}
 
-	css2, hash2, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
+	css2, hash2, err := BuildWithHash(Source{FS: testFS})
 	if err != nil {
 		t.Fatalf("BuildWithHash() second call error = %v", err)
 	}
@@ -367,18 +334,18 @@ func TestBuildWithHash_uniqueness(t *testing.T) {
 	t.Parallel()
 
 	hashBasicFS := fstest.MapFS{
-		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+		"reset.css": {Data: []byte("* { margin: 0; }")},
 	}
 	hashDifferentFS := fstest.MapFS{
-		"css/reset.css": {Data: []byte("* { margin: 1px; }")},
+		"reset.css": {Data: []byte("* { margin: 1px; }")},
 	}
 
-	_, hash1, err := BuildWithHash(Source{FS: hashBasicFS, Dir: "css"})
+	_, hash1, err := BuildWithHash(Source{FS: hashBasicFS})
 	if err != nil {
 		t.Fatalf("BuildWithHash() first call error = %v", err)
 	}
 
-	_, hash2, err := BuildWithHash(Source{FS: hashDifferentFS, Dir: "css"})
+	_, hash2, err := BuildWithHash(Source{FS: hashDifferentFS})
 	if err != nil {
 		t.Fatalf("BuildWithHash() second call error = %v", err)
 	}
@@ -392,10 +359,10 @@ func TestBuildWithHash_hex_format(t *testing.T) {
 	t.Parallel()
 
 	testFS := fstest.MapFS{
-		"css/reset.css": {Data: []byte("* { margin: 0; }")},
+		"reset.css": {Data: []byte("* { margin: 0; }")},
 	}
 
-	_, hash, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
+	_, hash, err := BuildWithHash(Source{FS: testFS})
 	if err != nil {
 		t.Fatalf("BuildWithHash() error = %v", err)
 	}
@@ -410,16 +377,16 @@ func TestBuildWithHash_matches_build(t *testing.T) {
 	t.Parallel()
 
 	testFS := fstest.MapFS{
-		"css/reset.css":     {Data: []byte("* { margin: 0; }")},
-		"css/base/file.css": {Data: []byte("h1 {}")},
+		"reset.css":     {Data: []byte("* { margin: 0; }")},
+		"base/file.css": {Data: []byte("h1 {}")},
 	}
 
-	buildCSS, err := Build(Source{FS: testFS, Dir: "css"})
+	buildCSS, err := Build(Source{FS: testFS})
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	hashCSS, _, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
+	hashCSS, _, err := BuildWithHash(Source{FS: testFS})
 	if err != nil {
 		t.Fatalf("BuildWithHash() error = %v", err)
 	}
@@ -432,7 +399,7 @@ func TestBuildWithHash_matches_build(t *testing.T) {
 func TestBuildWithHash_error_propagation(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := BuildWithHash(Source{FS: brokenFS{}, Dir: "css"})
+	_, _, err := BuildWithHash(Source{FS: brokenFS{}})
 	if err == nil {
 		t.Fatal("BuildWithHash() error = nil, want error")
 	}
@@ -445,26 +412,26 @@ func TestBuildWithHash_error_propagation(t *testing.T) {
 func TestBuild_multi_directory(t *testing.T) {
 	t.Parallel()
 
-	// Simulate three separate directories with different purposes
+	// Simulate three separate directories - files at root of each FS
 	stylesFS := fstest.MapFS{
-		"styles/reset.css":  {Data: []byte("/* reset */")},
-		"styles/tokens.css": {Data: []byte("/* tokens */")},
+		"reset.css":  {Data: []byte("/* reset */")},
+		"tokens.css": {Data: []byte("/* tokens */")},
 	}
 
 	componentsFS := fstest.MapFS{
-		"components/button/button.css": {Data: []byte("/* button */")},
-		"components/card/card.css":     {Data: []byte("/* card */")},
+		"button/button.css": {Data: []byte("/* button */")},
+		"card/card.css":     {Data: []byte("/* card */")},
 	}
 
 	routesFS := fstest.MapFS{
-		"routes/auth/login.css": {Data: []byte("/* login */")},
-		"routes/home.css":       {Data: []byte("/* home */")},
+		"auth/login.css": {Data: []byte("/* login */")},
+		"home.css":       {Data: []byte("/* home */")},
 	}
 
 	got, err := Build(
-		Source{FS: stylesFS, Dir: "styles"},
-		Source{FS: componentsFS, Dir: "components"},
-		Source{FS: routesFS, Dir: "routes"},
+		Source{FS: stylesFS},
+		Source{FS: componentsFS},
+		Source{FS: routesFS},
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
@@ -497,21 +464,21 @@ func TestBuild_multi_directory(t *testing.T) {
 func TestBuild_multi_directory_with_nesting(t *testing.T) {
 	t.Parallel()
 
-	// First source has nested layers
+	// First source has nested layers - files at root
 	source1FS := fstest.MapFS{
-		"styles/reset.css":             {Data: []byte("a")},
-		"styles/base/elements/btn.css": {Data: []byte("b")},
+		"reset.css":             {Data: []byte("a")},
+		"base/elements/btn.css": {Data: []byte("b")},
 	}
 
-	// Second source has only root layers
+	// Second source has only root layers - files at root
 	source2FS := fstest.MapFS{
-		"components/button.css": {Data: []byte("c")},
-		"components/card.css":   {Data: []byte("d")},
+		"button.css": {Data: []byte("c")},
+		"card.css":   {Data: []byte("d")},
 	}
 
 	got, err := Build(
-		Source{FS: source1FS, Dir: "styles"},
-		Source{FS: source2FS, Dir: "components"},
+		Source{FS: source1FS},
+		Source{FS: source2FS},
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
@@ -530,13 +497,12 @@ func TestBuild_with_prefix(t *testing.T) {
 	t.Parallel()
 
 	testFS := fstest.MapFS{
-		"components/button/button.css": {Data: []byte("/* button */")},
-		"components/card.css":          {Data: []byte("/* card */")},
+		"button/button.css": {Data: []byte("/* button */")},
+		"card.css":          {Data: []byte("/* card */")},
 	}
 
 	got, err := Build(Source{
 		FS:     testFS,
-		Dir:    "components",
 		Prefix: "comp",
 	})
 	if err != nil {
@@ -563,16 +529,16 @@ func TestBuild_multi_directory_with_prefixes(t *testing.T) {
 	t.Parallel()
 
 	componentsFS := fstest.MapFS{
-		"components/button.css": {Data: []byte("/* button */")},
+		"button.css": {Data: []byte("/* button */")},
 	}
 
 	routesFS := fstest.MapFS{
-		"routes/home.css": {Data: []byte("/* home */")},
+		"home.css": {Data: []byte("/* home */")},
 	}
 
 	got, err := Build(
-		Source{FS: componentsFS, Dir: "components", Prefix: "comp"},
-		Source{FS: routesFS, Dir: "routes", Prefix: "page"},
+		Source{FS: componentsFS, Prefix: "comp"},
+		Source{FS: routesFS, Prefix: "page"},
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
@@ -589,12 +555,11 @@ func TestBuild_empty_prefix_ignored(t *testing.T) {
 	t.Parallel()
 
 	testFS := fstest.MapFS{
-		"css/reset.css": {Data: []byte("x")},
+		"reset.css": {Data: []byte("x")},
 	}
 
 	got, err := Build(Source{
 		FS:     testFS,
-		Dir:    "css",
 		Prefix: "", // Empty prefix should be ignored
 	})
 	if err != nil {
@@ -613,16 +578,16 @@ func TestBuild_mixed_prefix_and_no_prefix(t *testing.T) {
 	t.Parallel()
 
 	stylesFS := fstest.MapFS{
-		"styles/reset.css": {Data: []byte("/* reset */")},
+		"reset.css": {Data: []byte("/* reset */")},
 	}
 
 	componentsFS := fstest.MapFS{
-		"components/button.css": {Data: []byte("/* button */")},
+		"button.css": {Data: []byte("/* button */")},
 	}
 
 	got, err := Build(
-		Source{FS: stylesFS, Dir: "styles"}, // No prefix
-		Source{FS: componentsFS, Dir: "components", Prefix: "comp"},
+		Source{FS: stylesFS}, // No prefix
+		Source{FS: componentsFS, Prefix: "comp"},
 	)
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
@@ -639,14 +604,18 @@ func TestBuild_prefix_with_nested_layers(t *testing.T) {
 	t.Parallel()
 
 	testFS := fstest.MapFS{
-		"components/base/button.css":     {Data: []byte("/* button */")},
-		"components/base/card/card.css":  {Data: []byte("/* card */")},
-		"components/other/dropdown.css":  {Data: []byte("/* dropdown */")},
+		"components/base/button.css":    {Data: []byte("/* button */")},
+		"components/base/card/card.css": {Data: []byte("/* card */")},
+		"components/other/dropdown.css": {Data: []byte("/* dropdown */")},
+	}
+
+	componentsFS, err := fs.Sub(testFS, "components")
+	if err != nil {
+		t.Fatalf("fs.Sub() error = %v", err)
 	}
 
 	got, err := Build(Source{
-		FS:     testFS,
-		Dir:    "components",
+		FS:     componentsFS,
 		Prefix: "comp",
 	})
 	if err != nil {
@@ -659,5 +628,60 @@ func TestBuild_prefix_with_nested_layers(t *testing.T) {
 	if !strings.HasPrefix(got, wantLayerDecl) {
 		t.Errorf("Build() layer declaration = %q, want %q",
 			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+}
+
+func TestBuild_sub_filesystems(t *testing.T) {
+	t.Parallel()
+
+	// Simulate a shared parent FS with multiple subdirectories
+	parentFS := fstest.MapFS{
+		"styles/reset.css":      {Data: []byte("/* reset */")},
+		"styles/tokens.css":     {Data: []byte("/* tokens */")},
+		"components/button.css": {Data: []byte("/* button */")},
+		"components/card.css":   {Data: []byte("/* card */")},
+		"routes/home.css":       {Data: []byte("/* home */")},
+		"routes/about/page.css": {Data: []byte("/* about */")},
+	}
+
+	// Create sub-filesystems for each source
+	stylesFS, err := fs.Sub(parentFS, "styles")
+	if err != nil {
+		t.Fatalf("fs.Sub(styles) error = %v", err)
+	}
+	componentsFS, err := fs.Sub(parentFS, "components")
+	if err != nil {
+		t.Fatalf("fs.Sub(components) error = %v", err)
+	}
+	routesFS, err := fs.Sub(parentFS, "routes")
+	if err != nil {
+		t.Fatalf("fs.Sub(routes) error = %v", err)
+	}
+
+	got, err := Build(
+		Source{FS: stylesFS},
+		Source{FS: componentsFS, Prefix: "components"},
+		Source{FS: routesFS, Prefix: "routes"},
+	)
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	// Expected order: styles first (reset, tokens), then components, then routes
+	wantLayerDecl := "@layer reset, tokens, components.button, components.card, routes.about, routes.home;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+
+	// Verify no duplicate layers
+	layerDecl := strings.SplitN(got, "\n", 2)[0]
+	layers := strings.Split(strings.TrimSuffix(strings.TrimPrefix(layerDecl, "@layer "), ";"), ", ")
+	seen := make(map[string]bool)
+	for _, layer := range layers {
+		if seen[layer] {
+			t.Errorf("Build() duplicate layer: %q", layer)
+		}
+		seen[layer] = true
 	}
 }

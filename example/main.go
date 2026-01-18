@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 
@@ -14,11 +15,14 @@ import (
 )
 
 func main() {
-	// Build CSS from the css/ directory
-	css, hash, err := strata.BuildWithHash(strata.Source{
-		FS:  os.DirFS("."),
-		Dir: "css",
-	})
+	// Create a sub-filesystem rooted at the css/ directory
+	cssFS, err := fs.Sub(os.DirFS("."), "css")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Build CSS from the filesystem
+	css, hash, err := strata.BuildWithHash(strata.Source{FS: cssFS})
 	if err != nil {
 		log.Fatal(err)
 	}

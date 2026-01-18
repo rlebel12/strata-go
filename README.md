@@ -13,19 +13,21 @@ go get github.com/rlebel12/strata-go
 ### Single Directory
 
 ```go
-import "github.com/rlebel12/strata-go"
+import (
+    "io/fs"
+    "os"
+
+    "github.com/rlebel12/strata-go"
+)
+
+// Create a filesystem rooted at the css/ directory
+cssFS, _ := fs.Sub(os.DirFS("."), "css")
 
 // Build CSS with layers from directory structure
-css, err := strata.Build(strata.Source{
-    FS:  os.DirFS("."),
-    Dir: "css",
-})
+css, err := strata.Build(strata.Source{FS: cssFS})
 
 // Or with a content hash for cache busting
-css, hash, err := strata.BuildWithHash(strata.Source{
-    FS:  os.DirFS("."),
-    Dir: "css",
-})
+css, hash, err := strata.BuildWithHash(strata.Source{FS: cssFS})
 // hash: 16 lowercase hex chars (e.g., "a1b2c3d4e5f67890")
 ```
 
@@ -34,10 +36,15 @@ css, hash, err := strata.BuildWithHash(strata.Source{
 For projects with CSS co-located alongside components and routes:
 
 ```go
+rootFS := os.DirFS(".")
+stylesFS, _ := fs.Sub(rootFS, "styles")
+componentsFS, _ := fs.Sub(rootFS, "components")
+routesFS, _ := fs.Sub(rootFS, "routes")
+
 css, err := strata.Build(
-    strata.Source{FS: os.DirFS("."), Dir: "styles"},      // First: resets, tokens
-    strata.Source{FS: os.DirFS("."), Dir: "components"},  // Second: components
-    strata.Source{FS: os.DirFS("."), Dir: "routes"},      // Third: routes
+    strata.Source{FS: stylesFS},      // First: resets, tokens
+    strata.Source{FS: componentsFS},  // Second: components
+    strata.Source{FS: routesFS},      // Third: routes
 )
 ```
 
@@ -46,10 +53,15 @@ css, err := strata.Build(
 Use prefixes to namespace layers from different directories:
 
 ```go
+rootFS := os.DirFS(".")
+stylesFS, _ := fs.Sub(rootFS, "styles")
+componentsFS, _ := fs.Sub(rootFS, "components")
+routesFS, _ := fs.Sub(rootFS, "routes")
+
 css, err := strata.Build(
-    strata.Source{FS: os.DirFS("."), Dir: "styles"},                   // Layers: reset, tokens
-    strata.Source{FS: os.DirFS("."), Dir: "components", Prefix: "c"},  // Layers: c.button, c.card
-    strata.Source{FS: os.DirFS("."), Dir: "routes", Prefix: "page"},   // Layers: page.auth, page.home
+    strata.Source{FS: stylesFS},                       // Layers: reset, tokens
+    strata.Source{FS: componentsFS, Prefix: "c"},      // Layers: c.button, c.card
+    strata.Source{FS: routesFS, Prefix: "page"},       // Layers: page.auth, page.home
 )
 // Output: @layer reset, tokens, c.button, c.card, page.auth, page.home;
 ```
