@@ -9,7 +9,10 @@ import (
 
 func ExampleBuild() {
 	// Build CSS from the css/ directory
-	output, err := strata.Build(os.DirFS("."), "css")
+	output, err := strata.Build(strata.Source{
+		FS:  os.DirFS("."),
+		Dir: "css",
+	})
 	if err != nil {
 		fmt.Println("error:", err)
 		return

@@ -193,7 +193,7 @@ func TestBuild(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := Build(tt.giveFS, tt.giveDir)
+			got, err := Build(Source{FS: tt.giveFS, Dir: tt.giveDir})
 			if err != nil {
 				t.Fatalf("Build() error = %v, want nil", err)
 			}
@@ -230,7 +230,7 @@ func TestBuild_concatenation_order(t *testing.T) {
 		"css/base/links.css":      {Data: []byte("a {}")},
 	}
 
-	got, err := Build(testFS, "css")
+	got, err := Build(Source{FS: testFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
 	}
@@ -255,7 +255,7 @@ func TestBuild_empty_file_creates_layer(t *testing.T) {
 		"css/empty.css": {Data: []byte("")},
 	}
 
-	got, err := Build(testFS, "css")
+	got, err := Build(Source{FS: testFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("Build() error = %v, want nil", err)
 	}
@@ -275,7 +275,7 @@ func (brokenFS) Open(name string) (fs.File, error) {
 func TestBuild_walk_error_propagation(t *testing.T) {
 	t.Parallel()
 
-	_, err := Build(brokenFS{}, "css")
+	_, err := Build(Source{FS: brokenFS{}, Dir: "css"})
 	if err == nil {
 		t.Fatal("Build() error = nil, want error")
 	}
@@ -320,7 +320,7 @@ func TestBuildWithHash(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			css, hash, err := BuildWithHash(tt.giveFS, tt.giveDir)
+			css, hash, err := BuildWithHash(Source{FS: tt.giveFS, Dir: tt.giveDir})
 			if err != nil {
 				t.Fatalf("BuildWithHash() error = %v, want nil", err)
 			}
@@ -344,12 +344,12 @@ func TestBuildWithHash_stability(t *testing.T) {
 		"css/reset.css": {Data: []byte("* { margin: 0; }")},
 	}
 
-	css1, hash1, err := BuildWithHash(testFS, "css")
+	css1, hash1, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("BuildWithHash() first call error = %v", err)
 	}
 
-	css2, hash2, err := BuildWithHash(testFS, "css")
+	css2, hash2, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("BuildWithHash() second call error = %v", err)
 	}
@@ -373,12 +373,12 @@ func TestBuildWithHash_uniqueness(t *testing.T) {
 		"css/reset.css": {Data: []byte("* { margin: 1px; }")},
 	}
 
-	_, hash1, err := BuildWithHash(hashBasicFS, "css")
+	_, hash1, err := BuildWithHash(Source{FS: hashBasicFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("BuildWithHash() first call error = %v", err)
 	}
 
-	_, hash2, err := BuildWithHash(hashDifferentFS, "css")
+	_, hash2, err := BuildWithHash(Source{FS: hashDifferentFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("BuildWithHash() second call error = %v", err)
 	}
@@ -395,7 +395,7 @@ func TestBuildWithHash_hex_format(t *testing.T) {
 		"css/reset.css": {Data: []byte("* { margin: 0; }")},
 	}
 
-	_, hash, err := BuildWithHash(testFS, "css")
+	_, hash, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("BuildWithHash() error = %v", err)
 	}
@@ -414,12 +414,12 @@ func TestBuildWithHash_matches_build(t *testing.T) {
 		"css/base/file.css": {Data: []byte("h1 {}")},
 	}
 
-	buildCSS, err := Build(testFS, "css")
+	buildCSS, err := Build(Source{FS: testFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
 
-	hashCSS, _, err := BuildWithHash(testFS, "css")
+	hashCSS, _, err := BuildWithHash(Source{FS: testFS, Dir: "css"})
 	if err != nil {
 		t.Fatalf("BuildWithHash() error = %v", err)
 	}
@@ -432,12 +432,232 @@ func TestBuildWithHash_matches_build(t *testing.T) {
 func TestBuildWithHash_error_propagation(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := BuildWithHash(brokenFS{}, "css")
+	_, _, err := BuildWithHash(Source{FS: brokenFS{}, Dir: "css"})
 	if err == nil {
 		t.Fatal("BuildWithHash() error = nil, want error")
 	}
 
 	if !strings.Contains(err.Error(), "walk") {
 		t.Errorf("BuildWithHash() error = %q, want error containing 'walk'", err.Error())
+	}
+}
+
+func TestBuild_multi_directory(t *testing.T) {
+	t.Parallel()
+
+	// Simulate three separate directories with different purposes
+	stylesFS := fstest.MapFS{
+		"styles/reset.css":  {Data: []byte("/* reset */")},
+		"styles/tokens.css": {Data: []byte("/* tokens */")},
+	}
+
+	componentsFS := fstest.MapFS{
+		"components/button/button.css": {Data: []byte("/* button */")},
+		"components/card/card.css":     {Data: []byte("/* card */")},
+	}
+
+	routesFS := fstest.MapFS{
+		"routes/auth/login.css": {Data: []byte("/* login */")},
+		"routes/home.css":       {Data: []byte("/* home */")},
+	}
+
+	got, err := Build(
+		Source{FS: stylesFS, Dir: "styles"},
+		Source{FS: componentsFS, Dir: "components"},
+		Source{FS: routesFS, Dir: "routes"},
+	)
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	// Verify layer declaration order: styles first, then components, then routes
+	wantLayerDecl := "@layer reset, tokens, button, card, auth, home;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+
+	// Verify content order: reset should come before button, button before login
+	resetIdx := strings.Index(got, "/* reset */")
+	buttonIdx := strings.Index(got, "/* button */")
+	loginIdx := strings.Index(got, "/* login */")
+
+	if resetIdx == -1 || buttonIdx == -1 || loginIdx == -1 {
+		t.Fatalf("Build() missing expected content")
+	}
+
+	if resetIdx > buttonIdx {
+		t.Errorf("Build() reset content should come before button content")
+	}
+	if buttonIdx > loginIdx {
+		t.Errorf("Build() button content should come before login content")
+	}
+}
+
+func TestBuild_multi_directory_with_nesting(t *testing.T) {
+	t.Parallel()
+
+	// First source has nested layers
+	source1FS := fstest.MapFS{
+		"styles/reset.css":             {Data: []byte("a")},
+		"styles/base/elements/btn.css": {Data: []byte("b")},
+	}
+
+	// Second source has only root layers
+	source2FS := fstest.MapFS{
+		"components/button.css": {Data: []byte("c")},
+		"components/card.css":   {Data: []byte("d")},
+	}
+
+	got, err := Build(
+		Source{FS: source1FS, Dir: "styles"},
+		Source{FS: source2FS, Dir: "components"},
+	)
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	// Within source1: reset (depth 0) comes before base.elements (depth 2)
+	// Then all of source2: button, card
+	wantLayerDecl := "@layer reset, base.elements, button, card;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+}
+
+func TestBuild_with_prefix(t *testing.T) {
+	t.Parallel()
+
+	testFS := fstest.MapFS{
+		"components/button/button.css": {Data: []byte("/* button */")},
+		"components/card.css":          {Data: []byte("/* card */")},
+	}
+
+	got, err := Build(Source{
+		FS:     testFS,
+		Dir:    "components",
+		Prefix: "comp",
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	// Layers should be prefixed with "comp."
+	wantLayerDecl := "@layer comp.button, comp.card;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+
+	// Layer blocks should also use prefixed names
+	if !strings.Contains(got, "@layer comp.button {") {
+		t.Errorf("Build() should contain '@layer comp.button {', got: %s", got)
+	}
+	if !strings.Contains(got, "@layer comp.card {") {
+		t.Errorf("Build() should contain '@layer comp.card {', got: %s", got)
+	}
+}
+
+func TestBuild_multi_directory_with_prefixes(t *testing.T) {
+	t.Parallel()
+
+	componentsFS := fstest.MapFS{
+		"components/button.css": {Data: []byte("/* button */")},
+	}
+
+	routesFS := fstest.MapFS{
+		"routes/home.css": {Data: []byte("/* home */")},
+	}
+
+	got, err := Build(
+		Source{FS: componentsFS, Dir: "components", Prefix: "comp"},
+		Source{FS: routesFS, Dir: "routes", Prefix: "page"},
+	)
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	wantLayerDecl := "@layer comp.button, page.home;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+}
+
+func TestBuild_empty_prefix_ignored(t *testing.T) {
+	t.Parallel()
+
+	testFS := fstest.MapFS{
+		"css/reset.css": {Data: []byte("x")},
+	}
+
+	got, err := Build(Source{
+		FS:     testFS,
+		Dir:    "css",
+		Prefix: "", // Empty prefix should be ignored
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	// Should be "reset", not ".reset"
+	wantLayerDecl := "@layer reset;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+}
+
+func TestBuild_mixed_prefix_and_no_prefix(t *testing.T) {
+	t.Parallel()
+
+	stylesFS := fstest.MapFS{
+		"styles/reset.css": {Data: []byte("/* reset */")},
+	}
+
+	componentsFS := fstest.MapFS{
+		"components/button.css": {Data: []byte("/* button */")},
+	}
+
+	got, err := Build(
+		Source{FS: stylesFS, Dir: "styles"}, // No prefix
+		Source{FS: componentsFS, Dir: "components", Prefix: "comp"},
+	)
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	wantLayerDecl := "@layer reset, comp.button;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
+	}
+}
+
+func TestBuild_prefix_with_nested_layers(t *testing.T) {
+	t.Parallel()
+
+	testFS := fstest.MapFS{
+		"components/base/button.css":     {Data: []byte("/* button */")},
+		"components/base/card/card.css":  {Data: []byte("/* card */")},
+		"components/other/dropdown.css":  {Data: []byte("/* dropdown */")},
+	}
+
+	got, err := Build(Source{
+		FS:     testFS,
+		Dir:    "components",
+		Prefix: "comp",
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v, want nil", err)
+	}
+
+	// Prefix should prepend to the full layer name
+	// base (depth 0), other (depth 0), base.card (depth 1)
+	wantLayerDecl := "@layer comp.base, comp.other, comp.base.card;"
+	if !strings.HasPrefix(got, wantLayerDecl) {
+		t.Errorf("Build() layer declaration = %q, want %q",
+			strings.SplitN(got, "\n", 2)[0], wantLayerDecl)
 	}
 }

@@ -14,6 +14,19 @@ import (
 
 const cssExtension = ".css"
 
+// Source represents a CSS source directory to build from.
+type Source struct {
+	// FS is the filesystem to read from
+	FS fs.FS
+
+	// Dir is the directory path to walk within the filesystem
+	Dir string
+
+	// Prefix is an optional namespace to prepend to all layer names.
+	// If set, layer names will be "prefix.layername" instead of "layername".
+	Prefix string
+}
+
 // pathToLayerName converts a file path to its CSS layer name.
 //
 // The layer name is derived from the directory structure relative to the
@@ -50,11 +63,13 @@ type layer struct {
 	content *bytes.Buffer
 }
 
-// Build walks the filesystem and returns CSS with @layer declarations.
+// Build walks one or more source directories and returns CSS with @layer declarations.
 //
-// The directory structure determines layer hierarchy:
+// Sources are processed in slice order. Within each source, the directory structure
+// determines layer hierarchy:
 //   - Root files (e.g., css/reset.css) become individual layers
 //   - Nested directories use dot notation (e.g., css/base/elements/ -> base.elements)
+//   - Optional Prefix prepends a namespace (e.g., Prefix: "comp" -> comp.button)
 //
 // Output format:
 //
@@ -63,79 +78,97 @@ type layer struct {
 //	@layer name2 { ... content ... }
 //
 // Files within the same layer are concatenated in alphabetical order.
-// Layers are ordered by depth first (shallow before deep), then alphabetically.
-// Empty filesystems return an empty string (not an error).
-func Build(fsys fs.FS, dir string) (string, error) {
-	layers := make(map[string]*layer)
-	var filePaths []string
+// Within each source, layers are ordered depth-first (shallow before deep), then alphabetically.
+// Empty sources return an empty string (not an error).
+func Build(sources ...Source) (string, error) {
+	var allLayers []*layer
 
-	// Collect all CSS file paths
-	err := fs.WalkDir(fsys, ".", func(filePath string, d fs.DirEntry, err error) error {
+	// Process each source in order
+	for _, src := range sources {
+		layers := make(map[string]*layer)
+		var filePaths []string
+
+		// Collect all CSS file paths from this source
+		err := fs.WalkDir(src.FS, ".", func(filePath string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(filePath, cssExtension) {
+				return nil
+			}
+			filePaths = append(filePaths, filePath)
+			return nil
+		})
 		if err != nil {
-			return err
+			return "", fmt.Errorf("walk filesystem: %w", err)
 		}
-		if d.IsDir() {
-			return nil
+
+		// Skip empty sources
+		if len(filePaths) == 0 {
+			continue
 		}
-		if !strings.HasSuffix(filePath, cssExtension) {
-			return nil
+
+		// Sort file paths for deterministic concatenation order
+		sort.Strings(filePaths)
+
+		// Process each CSS file
+		for _, filePath := range filePaths {
+			content, err := fs.ReadFile(src.FS, filePath)
+			if err != nil {
+				return "", fmt.Errorf("read %s: %w", filePath, err)
+			}
+
+			layerName := pathToLayerName(filePath, src.Dir)
+
+			// Apply prefix if specified
+			if src.Prefix != "" {
+				layerName = src.Prefix + "." + layerName
+			}
+
+			l, exists := layers[layerName]
+			if !exists {
+				l = &layer{
+					name:    layerName,
+					depth:   strings.Count(layerName, "."),
+					content: &bytes.Buffer{},
+				}
+				layers[layerName] = l
+			}
+
+			l.content.Write(content)
+			l.content.WriteByte('\n')
 		}
-		filePaths = append(filePaths, filePath)
-		return nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("walk filesystem: %w", err)
+
+		// Convert map to slice and sort by depth then name
+		sortedLayers := make([]*layer, 0, len(layers))
+		for _, l := range layers {
+			sortedLayers = append(sortedLayers, l)
+		}
+		sort.Slice(sortedLayers, func(i, j int) bool {
+			if sortedLayers[i].depth != sortedLayers[j].depth {
+				return sortedLayers[i].depth < sortedLayers[j].depth
+			}
+			return sortedLayers[i].name < sortedLayers[j].name
+		})
+
+		// Append this source's layers to the final list
+		allLayers = append(allLayers, sortedLayers...)
 	}
 
-	// Empty filesystem
-	if len(filePaths) == 0 {
+	// Handle empty result
+	if len(allLayers) == 0 {
 		return "", nil
 	}
-
-	// Sort file paths for deterministic concatenation order
-	sort.Strings(filePaths)
-
-	// Process each CSS file
-	for _, filePath := range filePaths {
-		content, err := fs.ReadFile(fsys, filePath)
-		if err != nil {
-			return "", fmt.Errorf("read %s: %w", filePath, err)
-		}
-
-		layerName := pathToLayerName(filePath, dir)
-
-		l, exists := layers[layerName]
-		if !exists {
-			l = &layer{
-				name:    layerName,
-				depth:   strings.Count(layerName, "."),
-				content: &bytes.Buffer{},
-			}
-			layers[layerName] = l
-		}
-
-		l.content.Write(content)
-		l.content.WriteByte('\n')
-	}
-
-	// Convert map to slice and sort by depth then name
-	sortedLayers := make([]*layer, 0, len(layers))
-	for _, l := range layers {
-		sortedLayers = append(sortedLayers, l)
-	}
-	sort.Slice(sortedLayers, func(i, j int) bool {
-		if sortedLayers[i].depth != sortedLayers[j].depth {
-			return sortedLayers[i].depth < sortedLayers[j].depth
-		}
-		return sortedLayers[i].name < sortedLayers[j].name
-	})
 
 	// Build output
 	var out bytes.Buffer
 
 	// Write layer declaration header
 	out.WriteString("@layer ")
-	for i, l := range sortedLayers {
+	for i, l := range allLayers {
 		if i > 0 {
 			out.WriteString(", ")
 		}
@@ -144,7 +177,7 @@ func Build(fsys fs.FS, dir string) (string, error) {
 	out.WriteString(";\n")
 
 	// Write each layer block
-	for _, l := range sortedLayers {
+	for _, l := range allLayers {
 		out.WriteString("@layer ")
 		out.WriteString(l.name)
 		out.WriteString(" {\n")
@@ -162,14 +195,17 @@ func Build(fsys fs.FS, dir string) (string, error) {
 //
 // Example usage:
 //
-//	css, hash, err := strata.BuildWithHash(os.DirFS("."), "css")
+//	css, hash, err := strata.BuildWithHash(strata.Source{
+//	    FS:  os.DirFS("."),
+//	    Dir: "css",
+//	})
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //	// Use hash in filename: styles.{hash}.css
 //	fmt.Printf("<link rel=\"stylesheet\" href=\"/static/styles.%s.css\">\n", hash)
-func BuildWithHash(fsys fs.FS, dir string) (css string, hash string, err error) {
-	css, err = Build(fsys, dir)
+func BuildWithHash(sources ...Source) (css string, hash string, err error) {
+	css, err = Build(sources...)
 	if err != nil {
 		return "", "", err
 	}
