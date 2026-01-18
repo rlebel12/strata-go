@@ -16,15 +16,22 @@ Pre-commit hooks (lefthook) run go-vet, go-build, and go-test automatically on c
 
 ## Architecture
 
-Single-package library (`package strata`) that transforms a CSS directory structure into cascade-layered CSS output.
+Single-package library (`package strata`) that transforms CSS directory structures into cascade-layered CSS output.
 
 **Public API:**
-- `Build(fsys fs.FS, dir string) (string, error)` - Walks filesystem, returns layered CSS
-- `BuildWithHash(fsys fs.FS, dir string) (css, hash string, err error)` - Same as Build, plus SHA-256 content hash (16 hex chars)
+- `Build(sources ...Source) (string, error)` - Builds CSS from one or more sources
+- `BuildWithHash(sources ...Source) (css, hash string, err error)` - Same as Build, plus SHA-256 content hash (16 hex chars)
+- `Source` struct:
+  - `FS fs.FS` - Filesystem to read from
+  - `Dir string` - Directory path within filesystem
+  - `Prefix string` - Optional namespace prefix for layer names
 
 **Layer derivation:**
 - Root files → layer name from filename (e.g., `css/reset.css` → `reset`)
 - Nested dirs → dot-separated layer name (e.g., `css/base/elements/` → `base.elements`)
-- Ordering: depth-first (shallow before deep), then alphabetical
+- Prefix → prepended to layer name (e.g., Prefix: "comp", `button.css` → `comp.button`)
+- Ordering: Sources processed in slice order; within each source, depth-first (shallow before deep), then alphabetical
+
+**Multi-directory usage:** Pass multiple `Source` structs to build from co-located CSS (e.g., styles/, components/, routes/)
 
 **Constraints:** Standard library only, no external dependencies.

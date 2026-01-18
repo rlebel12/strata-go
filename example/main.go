@@ -15,7 +15,10 @@ import (
 
 func main() {
 	// Build CSS from the css/ directory
-	css, hash, err := strata.BuildWithHash(os.DirFS("."), "css")
+	css, hash, err := strata.BuildWithHash(strata.Source{
+		FS:  os.DirFS("."),
+		Dir: "css",
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

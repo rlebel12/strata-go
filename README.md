@@ -10,15 +10,48 @@ go get github.com/rlebel12/strata-go
 
 ## Usage
 
+### Single Directory
+
 ```go
 import "github.com/rlebel12/strata-go"
 
 // Build CSS with layers from directory structure
-css, err := strata.Build(os.DirFS("."), "css")
+css, err := strata.Build(strata.Source{
+    FS:  os.DirFS("."),
+    Dir: "css",
+})
 
 // Or with a content hash for cache busting
-css, hash, err := strata.BuildWithHash(os.DirFS("."), "css")
+css, hash, err := strata.BuildWithHash(strata.Source{
+    FS:  os.DirFS("."),
+    Dir: "css",
+})
 // hash: 16 lowercase hex chars (e.g., "a1b2c3d4e5f67890")
+```
+
+### Multiple Directories (Co-located CSS)
+
+For projects with CSS co-located alongside components and routes:
+
+```go
+css, err := strata.Build(
+    strata.Source{FS: os.DirFS("."), Dir: "styles"},      // First: resets, tokens
+    strata.Source{FS: os.DirFS("."), Dir: "components"},  // Second: components
+    strata.Source{FS: os.DirFS("."), Dir: "routes"},      // Third: routes
+)
+```
+
+### With Prefixes (Namespacing)
+
+Use prefixes to namespace layers from different directories:
+
+```go
+css, err := strata.Build(
+    strata.Source{FS: os.DirFS("."), Dir: "styles"},                   // Layers: reset, tokens
+    strata.Source{FS: os.DirFS("."), Dir: "components", Prefix: "c"},  // Layers: c.button, c.card
+    strata.Source{FS: os.DirFS("."), Dir: "routes", Prefix: "page"},   // Layers: page.auth, page.home
+)
+// Output: @layer reset, tokens, c.button, c.card, page.auth, page.home;
 ```
 
 ## Directory Structure
